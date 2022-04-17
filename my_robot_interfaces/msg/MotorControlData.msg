@@ -1,0 +1,4 @@
+float32 front_right_power
+float32 front_left_power
+float32 rear_right_power
+float32 rear_left_power
