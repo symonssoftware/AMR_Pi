@@ -43,24 +43,47 @@ private:
        initCTRE()
      **************************************************************/
     void initCTRE() {
+
+        // Calibrate the Pigoen IMU
+        mPigeon->EnterCalibrationMode(PigeonIMU::CalibrationMode::BootTareGyroAccel);
+        
+        // Init motors
+        initMotor(mFrontRight);
+        initMotor(mFrontLeft);
+        initMotor(mRearRight);
+        initMotor(mRearLeft);
+     
         mFrontRight->SetInverted(true);
         mRearRight->SetInverted(true);
 
-        mFrontRight->ConfigOpenloopRamp(OPEN_RAMP_VALUE);
-        mFrontLeft->ConfigOpenloopRamp(OPEN_RAMP_VALUE);
-        mRearRight->ConfigOpenloopRamp(OPEN_RAMP_VALUE);
-        mRearLeft->ConfigOpenloopRamp(OPEN_RAMP_VALUE);
-
-        mPigeon->EnterCalibrationMode(PigeonIMU::CalibrationMode::BootTareGyroAccel);
-
         setMotorsToBrake();
+    }
+
+     /**************************************************************
+       initMotor()
+     **************************************************************/
+    void initMotor(TalonFX *motor) {
+
+        motor->ConfigFactoryDefault();
+        motor->ConfigOpenloopRamp(OPEN_RAMP_VALUE);
+        motor->ConfigVoltageCompSaturation(11);
+        motor->EnableVoltageCompensation(true);
+
+        StatorCurrentLimitConfiguration statorCurrentLimitConfig = 
+            StatorCurrentLimitConfiguration(true, 20, 25, 1.0);
+
+        motor->ConfigStatorCurrentLimit(statorCurrentLimitConfig);
+
+        SupplyCurrentLimitConfiguration supplyCurrentLimitConfig = 
+            SupplyCurrentLimitConfiguration(true, 10, 15, 0.5);
+
+        motor->ConfigSupplyCurrentLimit(supplyCurrentLimitConfig);
     }
 
     /**************************************************************
        resetHeading()
      **************************************************************/
-    void resetHeading()
-    {
+    void resetHeading() {
         mPigeon->SetYaw(0.0);
         mPigeon->SetFusedHeading(0.0);
     }
@@ -68,12 +91,11 @@ private:
     /**************************************************************
        publishHeading()
      **************************************************************/
-    void publishHeading()
-    {
+    void publishHeading() {
         double *ypr = new double[3];
         mPigeon->GetYawPitchRoll(ypr);
 
-        RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
+        //RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
 
         auto msg = example_interfaces::msg::Float32();
         msg.data = ypr[0];
@@ -101,24 +123,38 @@ private:
     }
 
     /**************************************************************
-        showPDPInfo()
+        getAverageBusVoltage()
      **************************************************************/
-    void showPDPInfo() {
-        //#include "ctre/phoenix/cci/CCI.h"
-        //CCIEXPORT ctre::phoenix::ErrorCode c_PDP_GetValues(int deviceID, double *voltage, double currents[], int currentCapacity, int *currentsFilled);
+    double getAverageBusVoltage() {
 
-        //c_PDP_GetValues(int deviceID, double *voltage, double currents[], int currentCapacity, int *currentsFilled);
+        // I can't figure out how to get the battery voltage from the PDP 
+        // directly so this is a bit of a hack. We'll just average all
+        // the voltage from the drive motors for now. need to find a better
+        // way of doing this. Maybe just reading one motor's value is fine.
+     
+        double frontRightVoltage = mFrontRight->GetBusVoltage();
+        double frontLeftVoltage = mFrontLeft->GetBusVoltage();
+        double rearRightVoltage = mRearRight->GetBusVoltage();
+        double rearLeftVoltage = mRearLeft->GetBusVoltage();
+
+        double averageVoltage = (frontRightVoltage + frontLeftVoltage +
+            rearRightVoltage + rearLeftVoltage) / 4.0;
+
+        RCLCPP_INFO(this->get_logger(), "Battery Voltage: %0.2fV", averageVoltage);   
+
+        return averageVoltage;
     }
 
     /**************************************************************
         callbackMotorControl()
      **************************************************************/
     void callbackMotorControl(const my_robot_interfaces::msg::MotorControlData::SharedPtr msg) {
-        RCLCPP_INFO(this->get_logger(), "FR: %0.2f FL: %0.2f RR: %0.2f RL: %0.2f\n",
+        
+        /*RCLCPP_INFO(this->get_logger(), "FR: %0.2f FL: %0.2f RR: %0.2f RL: %0.2f\n",
                     msg->front_right_power,
                     msg->front_left_power,
                     msg->rear_right_power,
-                    msg->rear_left_power);
+                    msg->rear_left_power);*/
 
         mFrontRight->Set(ControlMode::PercentOutput, msg->front_right_power);
         mFrontLeft->Set(ControlMode::PercentOutput, msg->front_left_power);
@@ -126,6 +162,8 @@ private:
         mRearLeft->Set(ControlMode::PercentOutput, msg->rear_left_power);
 
         ctre::phoenix::unmanaged::Unmanaged::FeedEnable(100);
+
+        getAverageBusVoltage();
     }
 
     rclcpp::Subscription<my_robot_interfaces::msg::MotorControlData>::SharedPtr mMotorControlSubscriber;
@@ -142,10 +180,10 @@ private:
 
     PigeonIMU *mPigeon = new PigeonIMU(PIGEON_CAN_ID);
 
-    TalonSRX *mFrontRight = new TalonSRX(RIGHT_FRONT_MOTOR_CAN_ID);
-    TalonSRX *mFrontLeft = new TalonSRX(LEFT_FRONT_MOTOR_CAN_ID);
-    TalonSRX *mRearRight = new TalonSRX(RIGHT_REAR_MOTOR_CAN_ID);
-    TalonSRX *mRearLeft = new TalonSRX(LEFT_REAR_MOTOR_CAN_ID);
+    TalonFX *mFrontRight = new TalonFX(RIGHT_FRONT_MOTOR_CAN_ID);
+    TalonFX *mFrontLeft = new TalonFX(LEFT_FRONT_MOTOR_CAN_ID);
+    TalonFX *mRearRight = new TalonFX(RIGHT_REAR_MOTOR_CAN_ID);
+    TalonFX *mRearLeft = new TalonFX(LEFT_REAR_MOTOR_CAN_ID);
 };
 
 /**************************************************************

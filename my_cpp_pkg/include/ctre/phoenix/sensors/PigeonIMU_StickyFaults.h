@@ -29,6 +29,8 @@ struct PigeonIMU_StickyFaults {
 	 * @param bits bit field of faults to update with
 	 */
 	void Update(uint64_t bits) {
+	    // KAS - put this in here to get rid of 'unused parameter' warning
+	    bits++;
 	}
 	/**
 	 * Creates fault list with specified bit field of faults
