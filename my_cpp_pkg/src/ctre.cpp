@@ -30,10 +30,15 @@ public:
             "/amr/radio_link", 10,
             std::bind(&CTRENode::callbackMotorControl, this, std::placeholders::_1));
 
-        mPigeonPublisher = this->create_publisher<example_interfaces::msg::Float32>("heading", 10);
+        mPigeonPublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/heading", 10);
 
         mHeadingTimer = this->create_wall_timer(std::chrono::milliseconds(10),
                                                 std::bind(&CTRENode::publishHeading, this));
+
+        mBatteryVoltagePublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/battery_voltage", 10);
+
+        mBatteryVoltageTimer = this->create_wall_timer(std::chrono::seconds(10),
+                                                       std::bind(&CTRENode::publishBatteryVoltage, this));
 
         RCLCPP_INFO(this->get_logger(), "CTRE Node has been started.");
     }
@@ -123,9 +128,9 @@ private:
     }
 
     /**************************************************************
-        getAverageBusVoltage()
+        publishBatteryVoltage()
      **************************************************************/
-    double getAverageBusVoltage() {
+    void publishBatteryVoltage() {
 
         // I can't figure out how to get the battery voltage from the PDP 
         // directly so this is a bit of a hack. We'll just average all
@@ -140,9 +145,11 @@ private:
         double averageVoltage = (frontRightVoltage + frontLeftVoltage +
             rearRightVoltage + rearLeftVoltage) / 4.0;
 
-        RCLCPP_INFO(this->get_logger(), "Battery Voltage: %0.2fV", averageVoltage);   
+        RCLCPP_INFO(this->get_logger(), "Battery Voltage: %0.2fV", averageVoltage);  
 
-        return averageVoltage;
+        auto msg = example_interfaces::msg::Float32();
+        msg.data = averageVoltage;
+        mBatteryVoltagePublisher->publish(msg); 
     }
 
     /**************************************************************
@@ -162,13 +169,15 @@ private:
         mRearLeft->Set(ControlMode::PercentOutput, msg->rear_left_power);
 
         ctre::phoenix::unmanaged::Unmanaged::FeedEnable(100);
-
-        getAverageBusVoltage();
     }
 
     rclcpp::Subscription<my_robot_interfaces::msg::MotorControlData>::SharedPtr mMotorControlSubscriber;
+    
     rclcpp::Publisher<example_interfaces::msg::Float32>::SharedPtr mPigeonPublisher;
     rclcpp::TimerBase::SharedPtr mHeadingTimer;
+  
+    rclcpp::Publisher<example_interfaces::msg::Float32>::SharedPtr mBatteryVoltagePublisher;
+    rclcpp::TimerBase::SharedPtr mBatteryVoltageTimer;
 
     static const int RIGHT_FRONT_MOTOR_CAN_ID = 11;
     static const int RIGHT_REAR_MOTOR_CAN_ID = 12;
