@@ -50,7 +50,7 @@ private:
     **************************************************************/
     bool setupSerialPort()
     {
-        mSerialPort = open("/dev/ttyAMA1", O_RDWR | O_NOCTTY);
+        mSerialPort = open("/dev/ttyAMA2", O_RDWR | O_NOCTTY);
 
         if (mSerialPort == -1)
         {
