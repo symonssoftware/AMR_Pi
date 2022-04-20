@@ -73,20 +73,24 @@ private:
 
         // 8N1 at 9600 baud
         options.c_cflag &= ~CBAUD;
-        options.c_cflag |= BOTHER;   
         options.c_ispeed = options.c_ospeed = 9600;
-        options.c_cflag = (options.c_cflag & ~CSIZE) | CS8;
-        options.c_iflag &= ~IGNBRK;
+        options.c_cflag &= ~PARENB;
+        options.c_cflag &= ~CSTOPB;
+        options.c_cflag &= ~CSIZE;
+        options.c_cflag |= CS8;
+
+        //options.c_iflag &= ~IGNBRK;
         options.c_lflag = 0;
+        options.c_lflag &= ~(ICANON | ECHO | ECHOE | ISIG);
         options.c_oflag = 0;
         options.c_cc[VMIN] = 0;
         options.c_cc[VTIME] = 10;
-        options.c_iflag &= ~(IXON | IXOFF | IXANY);
-        options.c_cflag &= (CLOCAL | CREAD);
-        options.c_cflag &= ~(PARENB | PARODD);
-        options.c_cflag |= 0;
-        options.c_cflag &= ~CSTOPB;
-        options.c_cflag &= ~CRTSCTS;
+        //options.c_iflag &= ~(IXON | IXOFF | IXANY);
+        //options.c_cflag &= (CLOCAL | CREAD); <<--THIS ONE SCREWED THINGS UP FOR TX FROM PI
+        //options.c_cflag &= ~(PARENB | PARODD);
+        //options.c_cflag |= 0;
+        //options.c_cflag &= ~CSTOPB;
+        //options.c_cflag &= ~CRTSCTS;
      
         if (ioctl(mSerialPort, TCSETS2, &options))
         {
@@ -101,8 +105,8 @@ private:
        processArduinoSerialData()
      **************************************************************/
     void processArduinoSerialData() {
-
-        int8_t rx_buffer[1];
+/*
+        unsigned char rx_buffer[1];
 
         int rx_length = read(mSerialPort, &rx_buffer, sizeof(rx_buffer));
 
@@ -120,6 +124,12 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Value: 0x%02X", rx_buffer[0]);
         }
+        */
+
+        unsigned char tx_buffer[1];
+        tx_buffer[0] = 0xDE;
+        write(mSerialPort, &tx_buffer, 1);
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
     }
 
     //rclcpp::Publisher<my_robot_interfaces::msg::MotorControlData>::SharedPtr mRadioLinkPublisher;
