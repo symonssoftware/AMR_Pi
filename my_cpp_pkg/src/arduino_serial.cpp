@@ -124,7 +124,6 @@ private:
         tx_buffer[0] = 0xDE;
         write(mSerialPort, &tx_buffer, 1);
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
-        
     }
 
     //rclcpp::Publisher<my_robot_interfaces::msg::MotorControlData>::SharedPtr mRadioLinkPublisher;
