@@ -97,8 +97,30 @@ private:
        processArduinoSerialData()
      **************************************************************/
     void processArduinoSerialData() {
-        /*
-        unsigned char rx_buffer[1];
+        unsigned char cmdSent;
+
+        mTxBuffer[0] = 0xFF; // Header Byte 1
+        mTxBuffer[1] = 0xFE; // Header Byte 2
+        mTxBuffer[2] = 0x02; // Length Byte
+        mTxBuffer[3] = cmdSent = 0x01; // Command Byte
+        mTxBuffer[4] = 0xAB; // Data Byte(s)
+        mTxBuffer[5] = 0xBC; // Data Byte(s)
+
+        uint16_t crc = crc16(&mTxBuffer[START_OF_DATA_BYTE], mTxBuffer[2]);
+
+        // For data above, should be 0x317f
+        mTxBuffer[6] = (unsigned char)((crc >> 8) & 0xff);
+        mTxBuffer[7] = (unsigned char)crc & 0xff;
+
+        write(mSerialPort, &mTxBuffer, 8);
+        RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X",
+                    mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
+                    mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
+                    mTxBuffer[6], mTxBuffer[7]);
+
+        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+
+        unsigned char rx_buffer[7];
 
         int rx_length = read(mSerialPort, &rx_buffer, sizeof(rx_buffer));
 
@@ -114,34 +136,40 @@ private:
         }
         else
         {
-            RCLCPP_INFO(this->get_logger(), "Value: 0x%02X", rx_buffer[0]);
+            RCLCPP_INFO(this->get_logger(), "RX Buffer: %02X %02X %02X %02X %02X %02X %02X",
+                        rx_buffer[0], rx_buffer[1], rx_buffer[2],
+                        rx_buffer[3], rx_buffer[4], rx_buffer[5],
+                        rx_buffer[6]);
+
+            unsigned char cmdAcked = rx_buffer[4];
+            unsigned char crc1 = rx_buffer[5];
+            unsigned char crc2 = rx_buffer[6];
+
+            crc = crc16(&rx_buffer[START_OF_DATA_BYTE], rx_buffer[2]);
+
+            unsigned char calcCrc1 = (unsigned char)((crc >> 8) & 0xff);
+            unsigned char calcCrc2 = (unsigned char)crc & 0xff;
+
+            if ((rx_buffer[3] == 0x00) &&
+                (crc1 == calcCrc1) &&
+                (crc2 == calcCrc2) &&
+                (cmdSent == cmdAcked)) {
+                RCLCPP_INFO(this->get_logger(), "Message Acked");
+            }
+            else {
+                RCLCPP_INFO(this->get_logger(), "Message Nacked - WTF?");
+            }
         }
-        */
-        
 
-        mTxBuffer[0] = 0xFF; // Header Byte 1
-        mTxBuffer[1] = 0xFE; // Header Byte 2
-        mTxBuffer[2] = 0x02; // Length Byte
-        mTxBuffer[3] = 0x01; // Command Byte
-        mTxBuffer[4] = 0xAB; // Data Byte(s)
-        mTxBuffer[5] = 0xBC; // Data Byte(s)
-
-        uint16_t crc = crc16(&mTxBuffer[START_OF_DATA_BYTE], mTxBuffer[2]);
-
-        // For data above, should be 0x317f
-        mTxBuffer[6] = (unsigned char)((crc >> 8) & 0xff);
-        mTxBuffer[7] = (unsigned char)crc & 0xff;
-
-        write(mSerialPort, &mTxBuffer, 8);
-        RCLCPP_INFO(this->get_logger(), "Buffer: %02X %02X %02X %02X %02X %02X %02X %02X", 
-                                         mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
-                                         mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
-                                         mTxBuffer[6], mTxBuffer[7]);
-        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
 
         // Flush the UART buffers
         usleep(1000);
         ioctl(mSerialPort, TCFLSH, 1); // flush tx
+    }
+
+    unsigned char* formatMessage(unsigned char cmd, unsigned char *data) {
+        
     }
 
     /**************************************************************
