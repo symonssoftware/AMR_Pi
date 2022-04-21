@@ -47,25 +47,20 @@ private:
     /**************************************************************
       setupSerialPort()
     **************************************************************/
-    bool setupSerialPort()
-    {
+    bool setupSerialPort() {
         mSerialPort = open("/dev/ttyAMA1", O_RDWR | O_NOCTTY);
 
-        if (mSerialPort == -1)
-        {
-
+        if (mSerialPort == -1) {
             RCLCPP_INFO(this->get_logger(), "Error - Unable to open UART.");
             return false;
         }
-        else
-        {
+        else {
             RCLCPP_INFO(this->get_logger(), "Serial Port Opened Successfully");
         }
 
         struct termios2 options;
 
-        if (ioctl(mSerialPort, TCGETS2, &options))
-        {
+        if (ioctl(mSerialPort, TCGETS2, &options)) {
 
             RCLCPP_INFO(this->get_logger(), "Error ioctl TCGETS2: %s", strerror(errno));
             return false;
@@ -86,11 +81,14 @@ private:
         options.c_cc[VMIN] = 0;
         options.c_cc[VTIME] = 10;
      
-        if (ioctl(mSerialPort, TCSETS2, &options))
-        {
+        if (ioctl(mSerialPort, TCSETS2, &options)) {
             RCLCPP_INFO(this->get_logger(), "Error ioctl TCSETS2: %s", strerror(errno));
             return false;
         }
+
+        // Flush the UART buffers
+        usleep(1000);
+        ioctl(mSerialPort, TCFLSH, 2); // flush both rx and tx
 
         return true;
     }
@@ -119,17 +117,65 @@ private:
             RCLCPP_INFO(this->get_logger(), "Value: 0x%02X", rx_buffer[0]);
         }
         */
+        
 
-        unsigned char tx_buffer[1];
-        tx_buffer[0] = 0xDE;
-        write(mSerialPort, &tx_buffer, 1);
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        mTxBuffer[0] = 0xFF; // Header Byte 1
+        mTxBuffer[1] = 0xFE; // Header Byte 2
+        mTxBuffer[2] = 0x02; // Length Byte
+        mTxBuffer[3] = 0x01; // Command Byte
+        mTxBuffer[4] = 0xAB; // Data Byte(s)
+        mTxBuffer[5] = 0xBC; // Data Byte(s)
+
+        uint16_t crc = crc16(&mTxBuffer[START_OF_DATA_BYTE], mTxBuffer[2]);
+
+        // For data above, should be 0x317f
+        mTxBuffer[6] = (unsigned char)((crc >> 8) & 0xff);
+        mTxBuffer[7] = (unsigned char)crc & 0xff;
+
+        write(mSerialPort, &mTxBuffer, 8);
+        RCLCPP_INFO(this->get_logger(), "Buffer: %02X %02X %02X %02X %02X %02X %02X %02X", 
+                                         mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
+                                         mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
+                                         mTxBuffer[6], mTxBuffer[7]);
+        std::this_thread::sleep_for(std::chrono::milliseconds(1000));
+
+        // Flush the UART buffers
+        usleep(1000);
+        ioctl(mSerialPort, TCFLSH, 1); // flush tx
+    }
+
+    /**************************************************************
+       crc16() - MODBUS Little Endian
+     **************************************************************/
+    unsigned short crc16(const unsigned char* data_p, unsigned char length) {
+       
+        unsigned int reg_crc = 0xFFFF;
+
+        while (length--) {
+            reg_crc ^= *data_p++;
+
+            for (int j = 0; j < 8; j++) {
+                if (reg_crc & 0x01) {
+                    reg_crc = (reg_crc >> 1) ^ 0xA001;
+                }
+                else {
+                    reg_crc = reg_crc >> 1;
+                }
+            }
+        }
+
+        //RCLCPP_INFO(this->get_logger(), "Value: 0x%04X", reg_crc);
+
+        return reg_crc;
     }
 
     //rclcpp::Publisher<my_robot_interfaces::msg::MotorControlData>::SharedPtr mRadioLinkPublisher;
     //rclcpp::TimerBase::SharedPtr mTimer;
 
+    static const int START_OF_DATA_BYTE = 4;
+
     int mSerialPort = -1;
+    unsigned char mTxBuffer[256];
 };
 
 int main(int argc, char **argv)
