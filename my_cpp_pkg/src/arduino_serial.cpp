@@ -5,8 +5,8 @@
 #include <chrono>
 #include <thread>
 #include <cmath>
-#include <unistd.h>  //Used for UART
-#include <fcntl.h>   //Used for UART
+#include <unistd.h> //Used for UART
+#include <fcntl.h>  //Used for UART
 #include <asm/termbits.h>
 #include <sys/ioctl.h>
 #include <inttypes.h>
@@ -16,7 +16,8 @@ class ArduinoSerialNode : public rclcpp::Node
 public:
     ArduinoSerialNode() : Node("arduino_serial")
     {
-        if (setupSerialPort()) {
+        if (setupSerialPort())
+        {
             //mRadioLinkPublisher = this->create_publisher<my_robot_interfaces::msg::MotorControlData>("/amr/radio_link", 10);
 
             // We will not use a timer here. We'll just publish ever time a new packet is received from the SBUS.
@@ -26,42 +27,47 @@ public:
             RCLCPP_INFO(this->get_logger(), "Arduino Serial Node has been started.");
 
             std::thread t1(std::bind(&ArduinoSerialNode::infiniteLoop, this));
-            t1.join();        
+            t1.join();
         }
-        else {
+        else
+        {
             RCLCPP_INFO(this->get_logger(), "Error - Failed to setup serial port");
         }
     }
 
 private:
-
     /**************************************************************
       infiniteLoop()
     **************************************************************/
-    void infiniteLoop() {
-        while (true) {
+    void infiniteLoop()
+    {
+        while (true)
+        {
             processArduinoSerialData();
         }
     }
-    
+
     /**************************************************************
       setupSerialPort()
     **************************************************************/
-    bool setupSerialPort() {
+    bool setupSerialPort()
+    {
         mSerialPort = open("/dev/ttyAMA1", O_RDWR | O_NOCTTY);
 
-        if (mSerialPort == -1) {
+        if (mSerialPort == -1)
+        {
             RCLCPP_INFO(this->get_logger(), "Error - Unable to open UART.");
             return false;
         }
-        else {
+        else
+        {
             RCLCPP_INFO(this->get_logger(), "Serial Port Opened Successfully");
         }
 
         struct termios2 options;
 
-        if (ioctl(mSerialPort, TCGETS2, &options)) {
-
+        if (ioctl(mSerialPort, TCGETS2, &options))
+        {
             RCLCPP_INFO(this->get_logger(), "Error ioctl TCGETS2: %s", strerror(errno));
             return false;
         }
@@ -80,8 +86,9 @@ private:
         options.c_oflag = 0;
         options.c_cc[VMIN] = 0;
         options.c_cc[VTIME] = 10;
-     
-        if (ioctl(mSerialPort, TCSETS2, &options)) {
+
+        if (ioctl(mSerialPort, TCSETS2, &options))
+        {
             RCLCPP_INFO(this->get_logger(), "Error ioctl TCSETS2: %s", strerror(errno));
             return false;
         }
@@ -96,33 +103,56 @@ private:
     /**************************************************************
        processArduinoSerialData()
      **************************************************************/
-    void processArduinoSerialData() {
-        unsigned char cmdSent;
+    void processArduinoSerialData()
+    {
+        unsigned char cmdSent = 0x55;
+        static const int txDataLength = 3;
 
-        mTxBuffer[0] = 0xFF; // Header Byte 1
-        mTxBuffer[1] = 0xFE; // Header Byte 2
-        mTxBuffer[2] = 0x02; // Length Byte
-        mTxBuffer[3] = cmdSent = 0x01; // Command Byte
-        mTxBuffer[4] = 0xAB; // Data Byte(s)
-        mTxBuffer[5] = 0xBC; // Data Byte(s)
+        unsigned char txDataBuffer[txDataLength];
+        txDataBuffer[0] = 0xAA;
+        txDataBuffer[1] = 0xBB;
+        txDataBuffer[2] = 0xCC;
+
+        sendMsgAndWaitForResponse(cmdSent, &txDataBuffer[0], txDataLength);
+    }
+
+    /**************************************************************
+       sendMsgAndWaitForResponse
+     **************************************************************/
+    void sendMsgAndWaitForResponse(unsigned char cmdSent,
+                                   const unsigned char *txData,
+                                   unsigned char txDataLength)
+    {
+
+        static int numRetries = 0;
+
+        mTxBuffer[0] = 0xFF;         // Header Byte 1
+        mTxBuffer[1] = 0xFE;         // Header Byte 2
+        mTxBuffer[2] = txDataLength; // Data Length Byte
+        mTxBuffer[3] = cmdSent;      // Command Byte
+
+        for (int i = 0; i < txDataLength; i++)
+        {
+            mTxBuffer[i + START_OF_DATA_BYTE] = txData[i];
+        }
 
         uint16_t crc = crc16(&mTxBuffer[START_OF_DATA_BYTE], mTxBuffer[2]);
 
-        // For data above, should be 0x317f
-        mTxBuffer[6] = (unsigned char)((crc >> 8) & 0xff);
-        mTxBuffer[7] = (unsigned char)crc & 0xff;
+        mTxBuffer[START_OF_DATA_BYTE + txDataLength] = (unsigned char)((crc >> 8) & 0xff);
+        mTxBuffer[START_OF_DATA_BYTE + txDataLength + 1] = (unsigned char)crc & 0xff;
 
-        write(mSerialPort, &mTxBuffer, 8);
-        RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X",
+        RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X %02X",
                     mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
                     mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
-                    mTxBuffer[6], mTxBuffer[7]);
+                    mTxBuffer[6], mTxBuffer[7], mTxBuffer[8]);
+
+        write(mSerialPort, &mTxBuffer, MESSAGE_OVERHEAD_BYTE_SIZE + txDataLength);
 
         std::this_thread::sleep_for(std::chrono::milliseconds(500));
 
         unsigned char rx_buffer[7];
 
-        int rx_length = read(mSerialPort, &rx_buffer, sizeof(rx_buffer));
+        int rx_length = read(mSerialPort, &rx_buffer, 7);
 
         if (rx_length < 0)
         {
@@ -153,40 +183,54 @@ private:
             if ((rx_buffer[3] == 0x00) &&
                 (crc1 == calcCrc1) &&
                 (crc2 == calcCrc2) &&
-                (cmdSent == cmdAcked)) {
+                (cmdSent == cmdAcked))
+            {
                 RCLCPP_INFO(this->get_logger(), "Message Acked");
             }
-            else {
-                RCLCPP_INFO(this->get_logger(), "Message Nacked - WTF?");
+            else
+            {
+                if (numRetries++ <= MAX_NUM_RETRIES)
+                {
+                    RCLCPP_INFO(this->get_logger(), "Message Nacked - WTF? Retrying...");
+
+                    // Flush the UART buffers
+                    usleep(1000);
+                    ioctl(mSerialPort, TCFLSH, 2); // flush both rx and tx
+
+                    sendMsgAndWaitForResponse(cmdSent, &txData[0], txDataLength);
+                }
+                else
+                {
+                    RCLCPP_INFO(this->get_logger(), "Message Nacked - Giving Up!!!!");
+                }
             }
         }
 
-        //std::this_thread::sleep_for(std::chrono::milliseconds(1000));
-
         // Flush the UART buffers
         usleep(1000);
-        ioctl(mSerialPort, TCFLSH, 1); // flush tx
-    }
-
-    unsigned char* formatMessage(unsigned char cmd, unsigned char *data) {
-        
+        ioctl(mSerialPort, TCFLSH, 2); // flush both rx and tx
     }
 
     /**************************************************************
        crc16() - MODBUS Little Endian
      **************************************************************/
-    unsigned short crc16(const unsigned char* data_p, unsigned char length) {
-       
+    unsigned short crc16(const unsigned char *data_p, unsigned char length)
+    {
+
         unsigned int reg_crc = 0xFFFF;
 
-        while (length--) {
+        while (length--)
+        {
             reg_crc ^= *data_p++;
 
-            for (int j = 0; j < 8; j++) {
-                if (reg_crc & 0x01) {
+            for (int j = 0; j < 8; j++)
+            {
+                if (reg_crc & 0x01)
+                {
                     reg_crc = (reg_crc >> 1) ^ 0xA001;
                 }
-                else {
+                else
+                {
                     reg_crc = reg_crc >> 1;
                 }
             }
@@ -200,10 +244,15 @@ private:
     //rclcpp::Publisher<my_robot_interfaces::msg::MotorControlData>::SharedPtr mRadioLinkPublisher;
     //rclcpp::TimerBase::SharedPtr mTimer;
 
-    static const int START_OF_DATA_BYTE = 4;
+    static const unsigned char START_OF_DATA_BYTE = 4;
+    static const unsigned char MESSAGE_OVERHEAD_BYTE_SIZE = 6; // Message size minus variable data length
+    static const unsigned char FIRST_HEADERR_BYTE = 0xFF;
+    static const unsigned char SECOND_HEADER_BYTE = 0xFE;
+    static const unsigned char MAX_MESSAGE_LENGTH_BYTES = 255;
+    static const int MAX_NUM_RETRIES = 3;
 
     int mSerialPort = -1;
-    unsigned char mTxBuffer[256];
+    unsigned char mTxBuffer[MAX_MESSAGE_LENGTH_BYTES];
 };
 
 int main(int argc, char **argv)
