@@ -5,11 +5,30 @@
 #include <chrono>
 #include <thread>
 #include <cmath>
+#include <queue>
 #include <unistd.h> //Used for UART
 #include <fcntl.h>  //Used for UART
 #include <asm/termbits.h>
 #include <sys/ioctl.h>
 #include <inttypes.h>
+
+/**************************************************************
+   class ArduinoMessage
+ **************************************************************/
+class ArduinoMessage
+{
+public:
+    ArduinoMessage(unsigned char cmdSent, unsigned char *txDataBuffer, unsigned char txDataLength)
+    {
+        mCmdSent = cmdSent;
+        mTxDataBuffer = txDataBuffer;
+        mTxDataLength = txDataLength;
+    }
+
+    unsigned char mCmdSent;
+    unsigned char mTxDataLength;
+    const unsigned char *mTxDataBuffer;
+};
 
 class ArduinoSerialNode : public rclcpp::Node
 {
@@ -41,6 +60,35 @@ private:
     **************************************************************/
     void infiniteLoop()
     {
+        unsigned char cmdSent = 0x55;
+        static const unsigned char txDataLength = 3;
+
+        unsigned char txDataBuffer[txDataLength];
+        txDataBuffer[0] = 0xAA;
+        txDataBuffer[1] = 0xBB;
+        txDataBuffer[2] = 0xCC;
+
+        ArduinoMessage ledMessage = ArduinoMessage(cmdSent, &txDataBuffer[0], txDataLength);
+        mMsgQueue.push(ledMessage);
+
+        unsigned char cmdSent1 = 0x21;
+        static const unsigned char txDataLength1 = 10;
+
+        unsigned char txDataBuffer1[txDataLength1];
+        txDataBuffer1[0] = 0x11;
+        txDataBuffer1[1] = 0x22;
+        txDataBuffer1[2] = 0x33;
+        txDataBuffer1[3] = 0x44;
+        txDataBuffer1[4] = 0x55;
+        txDataBuffer1[5] = 0x66;
+        txDataBuffer1[6] = 0x77;
+        txDataBuffer1[7] = 0x88;
+        txDataBuffer1[8] = 0x99;
+        txDataBuffer1[9] = 0xAA;
+
+        ArduinoMessage statusMessage = ArduinoMessage(cmdSent1, &txDataBuffer1[0], txDataLength1);
+        mMsgQueue.push(statusMessage);
+
         while (true)
         {
             processArduinoSerialData();
@@ -105,15 +153,12 @@ private:
      **************************************************************/
     void processArduinoSerialData()
     {
-        unsigned char cmdSent = 0x55;
-        static const int txDataLength = 3;
-
-        unsigned char txDataBuffer[txDataLength];
-        txDataBuffer[0] = 0xAA;
-        txDataBuffer[1] = 0xBB;
-        txDataBuffer[2] = 0xCC;
-
-        sendMsgAndWaitForResponse(cmdSent, &txDataBuffer[0], txDataLength);
+        while (!mMsgQueue.empty())
+        {
+            ArduinoMessage aMsg = mMsgQueue.front();
+            sendMsgAndWaitForResponse(aMsg.mCmdSent, &aMsg.mTxDataBuffer[0], aMsg.mTxDataLength);
+            mMsgQueue.pop();
+        }
     }
 
     /**************************************************************
@@ -123,36 +168,38 @@ private:
                                    const unsigned char *txData,
                                    unsigned char txDataLength)
     {
-
         static int numRetries = 0;
 
-        mTxBuffer[0] = 0xFF;         // Header Byte 1
-        mTxBuffer[1] = 0xFE;         // Header Byte 2
-        mTxBuffer[2] = txDataLength; // Data Length Byte
-        mTxBuffer[3] = cmdSent;      // Command Byte
+        mTxBuffer[0] = FIRST_HEADER_BYTE;  // Header Byte 1
+        mTxBuffer[1] = SECOND_HEADER_BYTE; // Header Byte 2
+        mTxBuffer[2] = txDataLength;       // Data Length Byte
+        mTxBuffer[3] = cmdSent;            // Command Byte
 
         for (int i = 0; i < txDataLength; i++)
         {
             mTxBuffer[i + START_OF_DATA_BYTE] = txData[i];
         }
 
-        uint16_t crc = crc16(&mTxBuffer[START_OF_DATA_BYTE], mTxBuffer[2]);
+        uint16_t crc = crc16(&mTxBuffer[START_OF_DATA_BYTE], txDataLength);
 
         mTxBuffer[START_OF_DATA_BYTE + txDataLength] = (unsigned char)((crc >> 8) & 0xff);
         mTxBuffer[START_OF_DATA_BYTE + txDataLength + 1] = (unsigned char)crc & 0xff;
 
-        RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+        RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
                     mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
                     mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
-                    mTxBuffer[6], mTxBuffer[7], mTxBuffer[8]);
+                    mTxBuffer[6], mTxBuffer[7], mTxBuffer[8],
+                    mTxBuffer[9], mTxBuffer[10], mTxBuffer[11],
+                    mTxBuffer[12], mTxBuffer[13], mTxBuffer[14],
+                    mTxBuffer[15], mTxBuffer[16], mTxBuffer[17]);
 
         write(mSerialPort, &mTxBuffer, MESSAGE_OVERHEAD_BYTE_SIZE + txDataLength);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(500));
+        std::this_thread::sleep_for(std::chrono::milliseconds(100));
 
-        unsigned char rx_buffer[7];
+        unsigned char rx_buffer[ACK_NACK_MESSAGE_LENGTH];
 
-        int rx_length = read(mSerialPort, &rx_buffer, 7);
+        int rx_length = read(mSerialPort, &rx_buffer, ACK_NACK_MESSAGE_LENGTH);
 
         if (rx_length < 0)
         {
@@ -189,7 +236,7 @@ private:
             }
             else
             {
-                if (numRetries++ <= MAX_NUM_RETRIES)
+                if (numRetries++ < MAX_NUM_RETRIES)
                 {
                     RCLCPP_INFO(this->get_logger(), "Message Nacked - WTF? Retrying...");
 
@@ -216,7 +263,6 @@ private:
      **************************************************************/
     unsigned short crc16(const unsigned char *data_p, unsigned char length)
     {
-
         unsigned int reg_crc = 0xFFFF;
 
         while (length--)
@@ -246,15 +292,20 @@ private:
 
     static const unsigned char START_OF_DATA_BYTE = 4;
     static const unsigned char MESSAGE_OVERHEAD_BYTE_SIZE = 6; // Message size minus variable data length
-    static const unsigned char FIRST_HEADERR_BYTE = 0xFF;
+    static const unsigned char FIRST_HEADER_BYTE = 0xFF;
     static const unsigned char SECOND_HEADER_BYTE = 0xFE;
     static const unsigned char MAX_MESSAGE_LENGTH_BYTES = 255;
     static const int MAX_NUM_RETRIES = 3;
+    static const unsigned char ACK_NACK_MESSAGE_LENGTH = 7;
 
     int mSerialPort = -1;
+    std::queue<ArduinoMessage> mMsgQueue;
     unsigned char mTxBuffer[MAX_MESSAGE_LENGTH_BYTES];
 };
 
+/**************************************************************
+   main
+ **************************************************************/
 int main(int argc, char **argv)
 {
     rclcpp::init(argc, argv);
