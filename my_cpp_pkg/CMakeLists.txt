@@ -23,7 +23,7 @@ add_executable(radio_link_publisher src/radio_link_publisher.cpp)
 ament_target_dependencies(radio_link_publisher rclcpp my_robot_interfaces)
 
 add_executable(arduino_serial src/arduino_serial.cpp)
-ament_target_dependencies(arduino_serial rclcpp my_robot_interfaces)
+ament_target_dependencies(arduino_serial rclcpp my_robot_interfaces example_interfaces)
 
 add_executable(ctre src/ctre.cpp)
 ament_target_dependencies(ctre rclcpp my_robot_interfaces example_interfaces)

@@ -1,4 +1,5 @@
 #include "rclcpp/rclcpp.hpp"
+#include "example_interfaces/msg/float32.hpp"
 
 #include <string>
 #include <iostream>
@@ -37,16 +38,15 @@ public:
     {
         if (setupSerialPort())
         {
-            //mRadioLinkPublisher = this->create_publisher<my_robot_interfaces::msg::MotorControlData>("/amr/radio_link", 10);
+            mBatteryVoltageSubscriber = this->create_subscription<example_interfaces::msg::Float32>(
+                "/amr/battery_voltage", 10,
+                std::bind(&ArduinoSerialNode::callbackBatteryVoltage, this, std::placeholders::_1));
 
-            // We will not use a timer here. We'll just publish ever time a new packet is received from the SBUS.
-            /*mTimer = this->create_wall_timer(std::chrono::milliseconds(10),
-                                             std::bind(&RadioLinkPublisherNode::publishMotorControlData, this));                                                                                                                                       
-            */
+            mHeadingSubscriber = this->create_subscription<example_interfaces::msg::Float32>(
+                "/amr/heading", 10,
+                std::bind(&ArduinoSerialNode::callbackHeading, this, std::placeholders::_1));
+
             RCLCPP_INFO(this->get_logger(), "Arduino Serial Node has been started.");
-
-            std::thread t1(std::bind(&ArduinoSerialNode::infiniteLoop, this));
-            t1.join();
         }
         else
         {
@@ -55,44 +55,51 @@ public:
     }
 
 private:
+
     /**************************************************************
-      infiniteLoop()
-    **************************************************************/
-    void infiniteLoop()
-    {
-        unsigned char cmdSent = 0x55;
-        static const unsigned char txDataLength = 3;
+        callbackBatteryVoltage()
+     **************************************************************/
+    void callbackBatteryVoltage(const example_interfaces::msg::Float32::SharedPtr msg) {
 
-        unsigned char txDataBuffer[txDataLength];
-        txDataBuffer[0] = 0xAA;
-        txDataBuffer[1] = 0xBB;
-        txDataBuffer[2] = 0xCC;
+        RCLCPP_INFO(this->get_logger(), "got a battery voltage msg");
 
-        ArduinoMessage ledMessage = ArduinoMessage(cmdSent, &txDataBuffer[0], txDataLength);
-        mMsgQueue.push(ledMessage);
+        unsigned char cmdSent = SERIAL_COMMAND_BATTERY_VOLTAGE;
+        static const unsigned char txDataLength = 4;
 
-        unsigned char cmdSent1 = 0x21;
-        static const unsigned char txDataLength1 = 10;
-
-        unsigned char txDataBuffer1[txDataLength1];
-        txDataBuffer1[0] = 0x11;
-        txDataBuffer1[1] = 0x22;
-        txDataBuffer1[2] = 0x33;
-        txDataBuffer1[3] = 0x44;
-        txDataBuffer1[4] = 0x55;
-        txDataBuffer1[5] = 0x66;
-        txDataBuffer1[6] = 0x77;
-        txDataBuffer1[7] = 0x88;
-        txDataBuffer1[8] = 0x99;
-        txDataBuffer1[9] = 0xAA;
-
-        ArduinoMessage statusMessage = ArduinoMessage(cmdSent1, &txDataBuffer1[0], txDataLength1);
-        mMsgQueue.push(statusMessage);
-
-        while (true)
+        union
         {
-            processArduinoSerialData();
-        }
+            unsigned char array[txDataLength];
+            float batteryVoltage;
+        } myUnion;
+
+        myUnion.batteryVoltage = msg->data;
+
+        ArduinoMessage batteryVoltageMessage = ArduinoMessage(cmdSent, myUnion.array, txDataLength);
+        mMsgQueue.push(batteryVoltageMessage);
+        processArduinoSerialData();
+    }
+
+    /**************************************************************
+        callbackHeading()
+     **************************************************************/
+    void callbackHeading(const example_interfaces::msg::Float32::SharedPtr msg) {
+
+        RCLCPP_INFO(this->get_logger(), "got a heading msg");
+
+        unsigned char cmdSent = SERIAL_COMMAND_HEADING;
+        static const unsigned char txDataLength = 4;
+
+        union
+        {
+            unsigned char array[txDataLength];
+            float heading;
+        } myUnion;
+
+        myUnion.heading = msg->data;
+
+        ArduinoMessage headingMessage = ArduinoMessage(cmdSent, myUnion.array, txDataLength);
+        mMsgQueue.push(headingMessage);
+        processArduinoSerialData();
     }
 
     /**************************************************************
@@ -153,6 +160,12 @@ private:
      **************************************************************/
     void processArduinoSerialData()
     {
+        // Running this in a separate thread to allow the queue to
+        // drain on its own didn't work because ROS2 subscribers 
+        // being ignored. Something to look into in the future 
+        // because calling this every time we receive a message that
+        // needs to be forwarded to the Arduino is likely to cause
+        // problems when loading is heavy.
         while (!mMsgQueue.empty())
         {
             ArduinoMessage aMsg = mMsgQueue.front();
@@ -195,7 +208,7 @@ private:
 
         write(mSerialPort, &mTxBuffer, MESSAGE_OVERHEAD_BYTE_SIZE + txDataLength);
 
-        std::this_thread::sleep_for(std::chrono::milliseconds(100));
+        usleep(5000);
 
         unsigned char rx_buffer[ACK_NACK_MESSAGE_LENGTH];
 
@@ -208,16 +221,17 @@ private:
         }
         else if (rx_length == 0)
         {
-            RCLCPP_INFO(this->get_logger(), "No Data");
+            RCLCPP_INFO(this->get_logger(), "No Response Data from Arduino");
             return; // Note early return!!
         }
         else
         {
+            /*
             RCLCPP_INFO(this->get_logger(), "RX Buffer: %02X %02X %02X %02X %02X %02X %02X",
                         rx_buffer[0], rx_buffer[1], rx_buffer[2],
                         rx_buffer[3], rx_buffer[4], rx_buffer[5],
                         rx_buffer[6]);
-
+            */
             unsigned char cmdAcked = rx_buffer[4];
             unsigned char crc1 = rx_buffer[5];
             unsigned char crc2 = rx_buffer[6];
@@ -287,9 +301,9 @@ private:
         return reg_crc;
     }
 
-    //rclcpp::Publisher<my_robot_interfaces::msg::MotorControlData>::SharedPtr mRadioLinkPublisher;
-    //rclcpp::TimerBase::SharedPtr mTimer;
-
+    rclcpp::Subscription<example_interfaces::msg::Float32>::SharedPtr mBatteryVoltageSubscriber;
+    rclcpp::Subscription<example_interfaces::msg::Float32>::SharedPtr mHeadingSubscriber;
+ 
     static const unsigned char START_OF_DATA_BYTE = 4;
     static const unsigned char MESSAGE_OVERHEAD_BYTE_SIZE = 6; // Message size minus variable data length
     static const unsigned char FIRST_HEADER_BYTE = 0xFF;
@@ -297,6 +311,9 @@ private:
     static const unsigned char MAX_MESSAGE_LENGTH_BYTES = 255;
     static const int MAX_NUM_RETRIES = 3;
     static const unsigned char ACK_NACK_MESSAGE_LENGTH = 7;
+
+    static const unsigned char SERIAL_COMMAND_BATTERY_VOLTAGE = 0x02;
+    static const unsigned char SERIAL_COMMAND_HEADING = 0x03;
 
     int mSerialPort = -1;
     std::queue<ArduinoMessage> mMsgQueue;

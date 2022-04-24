@@ -1,6 +1,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "my_robot_interfaces/msg/motor_control_data.hpp"
 #include "example_interfaces/msg/float32.hpp"
+//#include <sys/wait.h>
+//#include <unistd.h>
 
 #define Phoenix_No_WPI // remove WPI dependencies
 #include "ctre/Phoenix.h"
@@ -32,12 +34,12 @@ public:
 
         mPigeonPublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/heading", 10);
 
-        mHeadingTimer = this->create_wall_timer(std::chrono::milliseconds(10),
+        mHeadingTimer = this->create_wall_timer(std::chrono::milliseconds(100),
                                                 std::bind(&CTRENode::publishHeading, this));
 
         mBatteryVoltagePublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/battery_voltage", 10);
 
-        mBatteryVoltageTimer = this->create_wall_timer(std::chrono::seconds(10),
+        mBatteryVoltageTimer = this->create_wall_timer(std::chrono::seconds(1),
                                                        std::bind(&CTRENode::publishBatteryVoltage, this));
 
         RCLCPP_INFO(this->get_logger(), "CTRE Node has been started.");
@@ -48,6 +50,13 @@ private:
        initCTRE()
      **************************************************************/
     void initCTRE() {
+
+        /*pid_t pid;
+        if ((pid = fork()) > 0) {
+            execl("/home/ubuntu/ros2_ws/scripts/",  "sh", "canableStart.sh", NULL);
+        }        
+        int status;
+        waitpid(pid, &status, 0);*/
 
         // Calibrate the Pigoen IMU
         mPigeon->EnterCalibrationMode(PigeonIMU::CalibrationMode::BootTareGyroAccel);
@@ -100,7 +109,7 @@ private:
         double *ypr = new double[3];
         mPigeon->GetYawPitchRoll(ypr);
 
-        //RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
+        RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
 
         auto msg = example_interfaces::msg::Float32();
         msg.data = ypr[0];
