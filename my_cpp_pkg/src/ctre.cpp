@@ -1,8 +1,8 @@
 #include "rclcpp/rclcpp.hpp"
 #include "my_robot_interfaces/msg/motor_control_data.hpp"
 #include "example_interfaces/msg/float32.hpp"
-//#include <sys/wait.h>
-//#include <unistd.h>
+#include "my_robot_interfaces/msg/arduino_serial.hpp"
+#include "my_cpp_pkg/arduino_serial_cmds.hpp"
 
 #define Phoenix_No_WPI // remove WPI dependencies
 #include "ctre/Phoenix.h"
@@ -32,12 +32,12 @@ public:
             "/amr/radio_link", 10,
             std::bind(&CTRENode::callbackMotorControl, this, std::placeholders::_1));
 
-        mPigeonPublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/heading", 10);
+        mPigeonPublisher = this->create_publisher<my_robot_interfaces::msg::ArduinoSerial>("/amr/arduino_serial", 10);
 
         mHeadingTimer = this->create_wall_timer(std::chrono::milliseconds(750),
                                                 std::bind(&CTRENode::publishHeading, this));
 
-        mBatteryVoltagePublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/battery_voltage", 10);
+        mBatteryVoltagePublisher = this->create_publisher<my_robot_interfaces::msg::ArduinoSerial>("/amr/arduino_serial", 10);
 
         mBatteryVoltageTimer = this->create_wall_timer(std::chrono::seconds(1),
                                                        std::bind(&CTRENode::publishBatteryVoltage, this));
@@ -103,20 +103,6 @@ private:
     }
 
     /**************************************************************
-       publishHeading()
-     **************************************************************/
-    void publishHeading() {
-        double *ypr = new double[3];
-        mPigeon->GetYawPitchRoll(ypr);
-
-        RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
-
-        auto msg = example_interfaces::msg::Float32();
-        msg.data = ypr[0];
-        mPigeonPublisher->publish(msg);
-    }
-
-    /**************************************************************
         setMotorsToBrake()
      **************************************************************/
     void setMotorsToBrake() {
@@ -156,9 +142,52 @@ private:
 
         RCLCPP_INFO(this->get_logger(), "Battery Voltage: %0.2fV", averageVoltage);  
 
-        auto msg = example_interfaces::msg::Float32();
-        msg.data = averageVoltage;
-        mBatteryVoltagePublisher->publish(msg); 
+        auto arduinoSerialMsg = my_robot_interfaces::msg::ArduinoSerial();
+        arduinoSerialMsg.cmd = SERIAL_COMMAND_BATTERY_VOLTAGE;
+
+        static const unsigned char txDataLength = 4;
+
+        union
+        {
+            unsigned char array[txDataLength];
+            float batteryVoltage;
+        } myUnion;
+
+        myUnion.batteryVoltage = averageVoltage;
+
+        arduinoSerialMsg.tx_data.insert(arduinoSerialMsg.tx_data.begin(), std::begin(myUnion.array), std::end(myUnion.array));
+        arduinoSerialMsg.tx_data_length = txDataLength;
+
+        mBatteryVoltagePublisher->publish(arduinoSerialMsg);
+    }
+
+    /**************************************************************
+       publishHeading()
+     **************************************************************/
+    void publishHeading()
+    {
+        double *ypr = new double[3];
+        mPigeon->GetYawPitchRoll(ypr);
+
+        RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
+
+        auto arduinoSerialMsg = my_robot_interfaces::msg::ArduinoSerial();
+        arduinoSerialMsg.cmd = SERIAL_COMMAND_HEADING;
+
+        static const unsigned char txDataLength = 4;
+
+        union
+        {
+            unsigned char array[txDataLength];
+            float heading;
+        } myUnion;
+
+        myUnion.heading = ypr[0];
+
+        arduinoSerialMsg.tx_data.insert(arduinoSerialMsg.tx_data.begin(), std::begin(myUnion.array), std::end(myUnion.array));
+        arduinoSerialMsg.tx_data_length = txDataLength;
+
+        mPigeonPublisher->publish(arduinoSerialMsg);
     }
 
     /**************************************************************
@@ -182,10 +211,10 @@ private:
 
     rclcpp::Subscription<my_robot_interfaces::msg::MotorControlData>::SharedPtr mMotorControlSubscriber;
     
-    rclcpp::Publisher<example_interfaces::msg::Float32>::SharedPtr mPigeonPublisher;
+    rclcpp::Publisher<my_robot_interfaces::msg::ArduinoSerial>::SharedPtr mPigeonPublisher;
     rclcpp::TimerBase::SharedPtr mHeadingTimer;
   
-    rclcpp::Publisher<example_interfaces::msg::Float32>::SharedPtr mBatteryVoltagePublisher;
+    rclcpp::Publisher<my_robot_interfaces::msg::ArduinoSerial>::SharedPtr mBatteryVoltagePublisher;
     rclcpp::TimerBase::SharedPtr mBatteryVoltageTimer;
 
     static const int RIGHT_FRONT_MOTOR_CAN_ID = 11;

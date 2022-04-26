@@ -1,5 +1,6 @@
 #include "rclcpp/rclcpp.hpp"
 #include "example_interfaces/msg/float32.hpp"
+#include "my_robot_interfaces/msg/arduino_serial.hpp"
 
 #include <string>
 #include <iostream>
@@ -19,7 +20,7 @@
 class ArduinoMessage
 {
 public:
-    ArduinoMessage(unsigned char cmdSent, unsigned char *txDataBuffer, unsigned char txDataLength)
+    ArduinoMessage(unsigned char cmdSent, std::vector<unsigned char> txDataBuffer, unsigned char txDataLength)
     {
         mCmdSent = cmdSent;
         mTxDataBuffer = txDataBuffer;
@@ -28,7 +29,7 @@ public:
 
     unsigned char mCmdSent;
     unsigned char mTxDataLength;
-    const unsigned char *mTxDataBuffer;
+    std::vector<unsigned char> mTxDataBuffer;
 };
 
 class ArduinoSerialNode : public rclcpp::Node
@@ -38,17 +39,12 @@ public:
     {
         if (setupSerialPort())
         {
-            mBatteryVoltageSubscriber = this->create_subscription<example_interfaces::msg::Float32>(
-                "/amr/battery_voltage", 10,
-                std::bind(&ArduinoSerialNode::callbackBatteryVoltage, this, std::placeholders::_1));
-
-            mHeadingSubscriber = this->create_subscription<example_interfaces::msg::Float32>(
-                "/amr/heading", 10,
-                std::bind(&ArduinoSerialNode::callbackHeading, this, std::placeholders::_1));
+            mArduinoSerialSubscriber = this->create_subscription<my_robot_interfaces::msg::ArduinoSerial>(
+                "/amr/arduino_serial", 10,
+                std::bind(&ArduinoSerialNode::callbackArduinoSerial, this, std::placeholders::_1));
 
             //mTxTimer = this->create_wall_timer(std::chrono::milliseconds(500),
             //            std::bind(&ArduinoSerialNode::processArduinoSerialData, this));                                                                                                                                       
-
 
             RCLCPP_INFO(this->get_logger(), "Arduino Serial Node has been started.");
         }
@@ -61,48 +57,14 @@ public:
 private:
 
     /**************************************************************
-        callbackBatteryVoltage()
+        callbackArduinoSerial()
      **************************************************************/
-    void callbackBatteryVoltage(const example_interfaces::msg::Float32::SharedPtr msg) {
+    void callbackArduinoSerial(const my_robot_interfaces::msg::ArduinoSerial::SharedPtr msg) {
 
-        RCLCPP_INFO(this->get_logger(), "got a battery voltage msg");
+        RCLCPP_INFO(this->get_logger(), "Got an Arduino Serial msg");
 
-        unsigned char cmdSent = SERIAL_COMMAND_BATTERY_VOLTAGE;
-        static const unsigned char txDataLength = 4;
-
-        union
-        {
-            unsigned char array[txDataLength];
-            float batteryVoltage;
-        } myUnion;
-
-        myUnion.batteryVoltage = msg->data;
-
-        ArduinoMessage batteryVoltageMessage = ArduinoMessage(cmdSent, myUnion.array, txDataLength);
-        mMsgQueue.push(batteryVoltageMessage);
-        processArduinoSerialData();
-    }
-
-    /**************************************************************
-        callbackHeading()
-     **************************************************************/
-    void callbackHeading(const example_interfaces::msg::Float32::SharedPtr msg) {
-
-        RCLCPP_INFO(this->get_logger(), "got a heading msg");
-
-        unsigned char cmdSent = SERIAL_COMMAND_HEADING;
-        static const unsigned char txDataLength = 4;
-
-        union
-        {
-            unsigned char array[txDataLength];
-            float heading;
-        } myUnion;
-
-        myUnion.heading = msg->data;
-
-        ArduinoMessage headingMessage = ArduinoMessage(cmdSent, myUnion.array, txDataLength);
-        mMsgQueue.push(headingMessage);
+        ArduinoMessage arduinoSerialMessage = ArduinoMessage(msg->cmd, msg->tx_data, msg->tx_data_length);
+        mMsgQueue.push(arduinoSerialMessage);
         processArduinoSerialData();
     }
 
@@ -174,7 +136,7 @@ private:
         {
             RCLCPP_INFO(this->get_logger(), "Message Queue Size: %d", mMsgQueue.size());
             ArduinoMessage aMsg = mMsgQueue.front();
-            sendMsgAndWaitForResponse(aMsg.mCmdSent, &aMsg.mTxDataBuffer[0], aMsg.mTxDataLength);
+            sendMsgAndWaitForResponse(aMsg.mCmdSent, aMsg.mTxDataBuffer, aMsg.mTxDataLength);
             mMsgQueue.pop();
         }
     }
@@ -183,7 +145,7 @@ private:
        sendMsgAndWaitForResponse
      **************************************************************/
     void sendMsgAndWaitForResponse(unsigned char cmdSent,
-                                   const unsigned char *txData,
+                                   std::vector<unsigned char> txData,
                                    unsigned char txDataLength)
     {
         static int numRetries = 0;
@@ -263,7 +225,7 @@ private:
                     usleep(1000);
                     ioctl(mSerialPort, TCFLSH, 2); // flush both rx and tx
 
-                    sendMsgAndWaitForResponse(cmdSent, &txData[0], txDataLength);
+                    sendMsgAndWaitForResponse(cmdSent, txData, txDataLength);
                 }
                 else
                 {
@@ -306,8 +268,7 @@ private:
         return reg_crc;
     }
 
-    rclcpp::Subscription<example_interfaces::msg::Float32>::SharedPtr mBatteryVoltageSubscriber;
-    rclcpp::Subscription<example_interfaces::msg::Float32>::SharedPtr mHeadingSubscriber;
+    rclcpp::Subscription<my_robot_interfaces::msg::ArduinoSerial>::SharedPtr mArduinoSerialSubscriber;
     rclcpp::TimerBase::SharedPtr mTxTimer;
  
     static const unsigned char START_OF_DATA_BYTE = 4;
@@ -317,10 +278,6 @@ private:
     static const unsigned char MAX_MESSAGE_LENGTH_BYTES = 255;
     static const int MAX_NUM_RETRIES = 3;
     static const unsigned char ACK_NACK_MESSAGE_LENGTH = 7;
-
-    static const unsigned char SERIAL_COMMAND_BATTERY_VOLTAGE = 0x02;
-    static const unsigned char SERIAL_COMMAND_HEADING = 0x03;
-    static const unsigned char SERIAL_COMMAND_LED = 0x04;
 
     int mSerialPort = -1;
     std::queue<ArduinoMessage> mMsgQueue;
