@@ -46,6 +46,10 @@ public:
                 "/amr/heading", 10,
                 std::bind(&ArduinoSerialNode::callbackHeading, this, std::placeholders::_1));
 
+            //mTxTimer = this->create_wall_timer(std::chrono::milliseconds(500),
+            //            std::bind(&ArduinoSerialNode::processArduinoSerialData, this));                                                                                                                                       
+
+
             RCLCPP_INFO(this->get_logger(), "Arduino Serial Node has been started.");
         }
         else
@@ -162,12 +166,13 @@ private:
     {
         // Running this in a separate thread to allow the queue to
         // drain on its own didn't work because ROS2 subscribers 
-        // being ignored. Something to look into in the future 
+        // are being ignored. Something to look into in the future 
         // because calling this every time we receive a message that
         // needs to be forwarded to the Arduino is likely to cause
         // problems when loading is heavy.
         while (!mMsgQueue.empty())
         {
+            RCLCPP_INFO(this->get_logger(), "Message Queue Size: %d", mMsgQueue.size());
             ArduinoMessage aMsg = mMsgQueue.front();
             sendMsgAndWaitForResponse(aMsg.mCmdSent, &aMsg.mTxDataBuffer[0], aMsg.mTxDataLength);
             mMsgQueue.pop();
@@ -208,7 +213,7 @@ private:
 
         write(mSerialPort, &mTxBuffer, MESSAGE_OVERHEAD_BYTE_SIZE + txDataLength);
 
-        usleep(5000);
+        usleep(3000);
 
         unsigned char rx_buffer[ACK_NACK_MESSAGE_LENGTH];
 
@@ -303,6 +308,7 @@ private:
 
     rclcpp::Subscription<example_interfaces::msg::Float32>::SharedPtr mBatteryVoltageSubscriber;
     rclcpp::Subscription<example_interfaces::msg::Float32>::SharedPtr mHeadingSubscriber;
+    rclcpp::TimerBase::SharedPtr mTxTimer;
  
     static const unsigned char START_OF_DATA_BYTE = 4;
     static const unsigned char MESSAGE_OVERHEAD_BYTE_SIZE = 6; // Message size minus variable data length
@@ -314,10 +320,11 @@ private:
 
     static const unsigned char SERIAL_COMMAND_BATTERY_VOLTAGE = 0x02;
     static const unsigned char SERIAL_COMMAND_HEADING = 0x03;
+    static const unsigned char SERIAL_COMMAND_LED = 0x04;
 
     int mSerialPort = -1;
     std::queue<ArduinoMessage> mMsgQueue;
-    unsigned char mTxBuffer[MAX_MESSAGE_LENGTH_BYTES];
+    unsigned char mTxBuffer[MAX_MESSAGE_LENGTH_BYTES];    
 };
 
 /**************************************************************

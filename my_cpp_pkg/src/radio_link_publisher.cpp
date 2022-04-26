@@ -41,6 +41,9 @@ private:
     **************************************************************/
     void infiniteLoop() {
         while (true) {
+            // This will not allow the ROS2 node to "spin" but that's
+            // okay becasuse we're not subscribing to anything, only
+            // publishing.
             processRemoteControllerData();
         }
     }
@@ -352,7 +355,7 @@ private:
     }
 
     rclcpp::Publisher<my_robot_interfaces::msg::MotorControlData>::SharedPtr mRadioLinkPublisher;
-    rclcpp::TimerBase::SharedPtr mTimer;
+    //rclcpp::TimerBase::SharedPtr mTimer;
 
     int mSerialPort = -1;
 

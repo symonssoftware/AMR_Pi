@@ -34,7 +34,7 @@ public:
 
         mPigeonPublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/heading", 10);
 
-        mHeadingTimer = this->create_wall_timer(std::chrono::milliseconds(100),
+        mHeadingTimer = this->create_wall_timer(std::chrono::milliseconds(750),
                                                 std::bind(&CTRENode::publishHeading, this));
 
         mBatteryVoltagePublisher = this->create_publisher<example_interfaces::msg::Float32>("/amr/battery_voltage", 10);
