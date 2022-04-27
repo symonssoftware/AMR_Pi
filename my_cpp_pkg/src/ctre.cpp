@@ -39,8 +39,10 @@ public:
 
         mBatteryVoltagePublisher = this->create_publisher<my_robot_interfaces::msg::ArduinoSerial>("/amr/arduino_serial", 10);
 
-        mBatteryVoltageTimer = this->create_wall_timer(std::chrono::seconds(1),
+        mBatteryVoltageTimer = this->create_wall_timer(std::chrono::seconds(5),
                                                        std::bind(&CTRENode::publishBatteryVoltage, this));
+
+        mLEDPublisher = this->create_publisher<my_robot_interfaces::msg::ArduinoSerial>("/amr/arduino_serial", 10);
 
         RCLCPP_INFO(this->get_logger(), "CTRE Node has been started.");
     }
@@ -142,8 +144,27 @@ private:
 
         RCLCPP_INFO(this->get_logger(), "Battery Voltage: %0.2fV", averageVoltage);  
 
-        auto arduinoSerialMsg = my_robot_interfaces::msg::ArduinoSerial();
-        arduinoSerialMsg.cmd = SERIAL_COMMAND_BATTERY_VOLTAGE;
+        // Check to see if the voltage has changed enough to change LEDs
+        if (abs(lastVoltageRead - averageVoltage) > 0.1) {
+
+            auto ledArduinoSerialMsg = my_robot_interfaces::msg::ArduinoSerial();
+            
+            ledArduinoSerialMsg.cmd = SERIAL_COMMAND_LED;
+            ledArduinoSerialMsg.tx_data_length = 3;
+
+            if (averageVoltage < 12.2) {
+                ledArduinoSerialMsg.tx_data = {255, 0, 0};
+            }
+            else {
+                ledArduinoSerialMsg.tx_data = {0, 255, 0};
+            }
+
+            mLEDPublisher->publish(ledArduinoSerialMsg);
+        }
+
+        auto battVoltageArduinoSerialMsg = my_robot_interfaces::msg::ArduinoSerial();
+
+        battVoltageArduinoSerialMsg.cmd = SERIAL_COMMAND_BATTERY_VOLTAGE;
 
         static const unsigned char txDataLength = 4;
 
@@ -155,10 +176,13 @@ private:
 
         myUnion.batteryVoltage = averageVoltage;
 
-        arduinoSerialMsg.tx_data.insert(arduinoSerialMsg.tx_data.begin(), std::begin(myUnion.array), std::end(myUnion.array));
-        arduinoSerialMsg.tx_data_length = txDataLength;
+        battVoltageArduinoSerialMsg.tx_data.insert(battVoltageArduinoSerialMsg.tx_data.begin(),
+                                                   std::begin(myUnion.array), std::end(myUnion.array));
+        battVoltageArduinoSerialMsg.tx_data_length = txDataLength;
 
-        mBatteryVoltagePublisher->publish(arduinoSerialMsg);
+        mBatteryVoltagePublisher->publish(battVoltageArduinoSerialMsg);
+
+        lastVoltageRead = averageVoltage;
     }
 
     /**************************************************************
@@ -169,7 +193,7 @@ private:
         double *ypr = new double[3];
         mPigeon->GetYawPitchRoll(ypr);
 
-        RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
+        //RCLCPP_INFO(this->get_logger(), "Heading: %0.2f\n", std::remainder(ypr[0], 360.0d));
 
         auto arduinoSerialMsg = my_robot_interfaces::msg::ArduinoSerial();
         arduinoSerialMsg.cmd = SERIAL_COMMAND_HEADING;
@@ -217,6 +241,8 @@ private:
     rclcpp::Publisher<my_robot_interfaces::msg::ArduinoSerial>::SharedPtr mBatteryVoltagePublisher;
     rclcpp::TimerBase::SharedPtr mBatteryVoltageTimer;
 
+    rclcpp::Publisher<my_robot_interfaces::msg::ArduinoSerial>::SharedPtr mLEDPublisher;
+ 
     static const int RIGHT_FRONT_MOTOR_CAN_ID = 11;
     static const int RIGHT_REAR_MOTOR_CAN_ID = 12;
     static const int LEFT_FRONT_MOTOR_CAN_ID = 13;
@@ -224,6 +250,8 @@ private:
     static const int PIGEON_CAN_ID = 61;
 
     const double OPEN_RAMP_VALUE = 1.0;
+
+    double lastVoltageRead = 0.0;
 
     PigeonIMU *mPigeon = new PigeonIMU(PIGEON_CAN_ID);
 

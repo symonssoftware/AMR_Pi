@@ -1,6 +1,7 @@
 #include "rclcpp/rclcpp.hpp"
 #include "example_interfaces/msg/float32.hpp"
 #include "my_robot_interfaces/msg/arduino_serial.hpp"
+#include "my_cpp_pkg/arduino_serial_cmds.hpp"
 
 #include <string>
 #include <iostream>
@@ -43,8 +44,8 @@ public:
                 "/amr/arduino_serial", 10,
                 std::bind(&ArduinoSerialNode::callbackArduinoSerial, this, std::placeholders::_1));
 
-            //mTxTimer = this->create_wall_timer(std::chrono::milliseconds(500),
-            //            std::bind(&ArduinoSerialNode::processArduinoSerialData, this));                                                                                                                                       
+            mTxTimer = this->create_wall_timer(std::chrono::milliseconds(100),
+                        std::bind(&ArduinoSerialNode::processArduinoSerialData, this));                                                                                                                                       
 
             RCLCPP_INFO(this->get_logger(), "Arduino Serial Node has been started.");
         }
@@ -61,11 +62,22 @@ private:
      **************************************************************/
     void callbackArduinoSerial(const my_robot_interfaces::msg::ArduinoSerial::SharedPtr msg) {
 
-        RCLCPP_INFO(this->get_logger(), "Got an Arduino Serial msg");
+        switch (msg->cmd) {
+            case SERIAL_COMMAND_BATTERY_VOLTAGE:
+                RCLCPP_INFO(this->get_logger(), "Got a SERIAL_COMMAND_BATTERY_VOLTAGE msg");
+           break;
+            case SERIAL_COMMAND_HEADING:
+               RCLCPP_INFO(this->get_logger(), "Got a SERIAL_COMMAND_HEADING msg");
+           break;
+            case SERIAL_COMMAND_LED:
+               RCLCPP_INFO(this->get_logger(), "Got a SERIAL_COMMAND_LED msg");
+            break;
+            default:
+               RCLCPP_INFO(this->get_logger(), "Got an unknown Arduino Serial msg");
+        }
 
         ArduinoMessage arduinoSerialMessage = ArduinoMessage(msg->cmd, msg->tx_data, msg->tx_data_length);
         mMsgQueue.push(arduinoSerialMessage);
-        processArduinoSerialData();
     }
 
     /**************************************************************
@@ -127,14 +139,18 @@ private:
     void processArduinoSerialData()
     {
         // Running this in a separate thread to allow the queue to
-        // drain on its own didn't work because ROS2 subscribers 
-        // are being ignored. Something to look into in the future 
+        // drain on its own didn't work because ROS2 subscribers
+        // are being ignored. Something to look into in the future
         // because calling this every time we receive a message that
         // needs to be forwarded to the Arduino is likely to cause
         // problems when loading is heavy.
         while (!mMsgQueue.empty())
         {
-            RCLCPP_INFO(this->get_logger(), "Message Queue Size: %d", mMsgQueue.size());
+            if (mMsgQueue.size() > 1)
+            {
+                RCLCPP_INFO(this->get_logger(), "Message Queue Size: %d", mMsgQueue.size());
+            }
+            
             ArduinoMessage aMsg = mMsgQueue.front();
             sendMsgAndWaitForResponse(aMsg.mCmdSent, aMsg.mTxDataBuffer, aMsg.mTxDataLength);
             mMsgQueue.pop();
@@ -165,17 +181,17 @@ private:
         mTxBuffer[START_OF_DATA_BYTE + txDataLength] = (unsigned char)((crc >> 8) & 0xff);
         mTxBuffer[START_OF_DATA_BYTE + txDataLength + 1] = (unsigned char)crc & 0xff;
 
-        RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
-                    mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
-                    mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
-                    mTxBuffer[6], mTxBuffer[7], mTxBuffer[8],
-                    mTxBuffer[9], mTxBuffer[10], mTxBuffer[11],
-                    mTxBuffer[12], mTxBuffer[13], mTxBuffer[14],
-                    mTxBuffer[15], mTxBuffer[16], mTxBuffer[17]);
+        // RCLCPP_INFO(this->get_logger(), "TX Buffer: %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X %02X",
+        //             mTxBuffer[0], mTxBuffer[1], mTxBuffer[2],
+        //             mTxBuffer[3], mTxBuffer[4], mTxBuffer[5],
+        //             mTxBuffer[6], mTxBuffer[7], mTxBuffer[8],
+        //             mTxBuffer[9], mTxBuffer[10], mTxBuffer[11],
+        //             mTxBuffer[12], mTxBuffer[13], mTxBuffer[14],
+        //             mTxBuffer[15], mTxBuffer[16], mTxBuffer[17]);
 
         write(mSerialPort, &mTxBuffer, MESSAGE_OVERHEAD_BYTE_SIZE + txDataLength);
 
-        usleep(3000);
+        usleep(2000);
 
         unsigned char rx_buffer[ACK_NACK_MESSAGE_LENGTH];
 
@@ -214,7 +230,7 @@ private:
                 (cmdSent == cmdAcked))
             {
                 RCLCPP_INFO(this->get_logger(), "Message Acked");
-            }
+             }
             else
             {
                 if (numRetries++ < MAX_NUM_RETRIES)
@@ -222,7 +238,6 @@ private:
                     RCLCPP_INFO(this->get_logger(), "Message Nacked - WTF? Retrying...");
 
                     // Flush the UART buffers
-                    usleep(1000);
                     ioctl(mSerialPort, TCFLSH, 2); // flush both rx and tx
 
                     sendMsgAndWaitForResponse(cmdSent, txData, txDataLength);
@@ -235,7 +250,6 @@ private:
         }
 
         // Flush the UART buffers
-        usleep(1000);
         ioctl(mSerialPort, TCFLSH, 2); // flush both rx and tx
     }
 
