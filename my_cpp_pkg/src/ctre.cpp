@@ -53,13 +53,6 @@ private:
      **************************************************************/
     void initCTRE()
     {
-        /*pid_t pid;
-        if ((pid = fork()) > 0) {
-            execl("/home/ubuntu/ros2_ws/scripts/",  "sh", "canableStart.sh", NULL);
-        }        
-        int status;
-        waitpid(pid, &status, 0);*/
-
         initPigeon();
 
         // Init motors
@@ -71,7 +64,7 @@ private:
         mFrontRight->SetInverted(TalonFXInvertType::Clockwise);
         mRearRight->SetInverted(TalonFXInvertType::Clockwise);
 
-        setMotorsToBrake();
+        setMotorsToCoast();
 
         zeroSensors();
     }
@@ -291,11 +284,11 @@ private:
     void callbackMotorControl(const my_robot_interfaces::msg::MotorControlData::SharedPtr msg)
     {
 
-        /*RCLCPP_INFO(this->get_logger(), "FR: %0.2f FL: %0.2f RR: %0.2f RL: %0.2f\n",
+        RCLCPP_INFO(this->get_logger(), "FR: %0.2f FL: %0.2f RR: %0.2f RL: %0.2f\n",
                     msg->front_right_power,
                     msg->front_left_power,
                     msg->rear_right_power,
-                    msg->rear_left_power);*/
+                    msg->rear_left_power);
 
         mFrontRight->Set(ControlMode::PercentOutput, msg->front_right_power);
         mFrontLeft->Set(ControlMode::PercentOutput, msg->front_left_power);

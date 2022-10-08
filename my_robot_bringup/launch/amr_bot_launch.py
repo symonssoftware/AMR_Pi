@@ -139,6 +139,6 @@ def generate_launch_description():
         # robot_localization_node,
         # odometry_node,
         ctre_node,
-        usb_cam_node
+        #usb_cam_node
         #rviz_node
     ])
