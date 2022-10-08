@@ -37,8 +37,10 @@ IMG_NORM_RATIO = 0.007843 # In grayscale a pixel can range between 0 and 255
 #------------------------------------------------------------
 class DesktopUI(tk.Tk):
 
-    def __init__(self):
+    def __init__(self, node):
         super().__init__()
+
+        self.desktop_ui_node = node
 
         # Create the main window
         self.title("Desktop UI")
@@ -126,7 +128,7 @@ class DesktopUI(tk.Tk):
         msg.rear_right_power = 0.0
         msg.rear_left_power = 0.0
 
-        self.motor_control_publisher.publish(msg)
+        self.desktop_ui_node.motor_control_publisher.publish(msg)
 
     def forward_button_callback(self):
         
@@ -137,7 +139,7 @@ class DesktopUI(tk.Tk):
         msg.rear_right_power = 0.2
         msg.rear_left_power = 0.2
 
-        self.motor_control_publisher.publish(msg)
+        self.desktop_ui_node.motor_control_publisher.publish(msg)
 
 
     def start_main_loop(self):
@@ -318,7 +320,9 @@ class DesktopUserInterfaceNode(Node):
     def __init__(self):
         super().__init__("desktop_user_interface") 
 
-        self.user_interface = DesktopUI()
+        self.user_interface = DesktopUI(self)
+
+        self.motor_control_publisher = self.create_publisher(MotorControlData, '/amr/motor_control', 10)
 
         # Create the subscriber. This subscriber will receive an Image
         # from the video_frames topic. The queue size is 10 messages.
@@ -332,8 +336,6 @@ class DesktopUserInterfaceNode(Node):
       
         # Used to convert between ROS and OpenCV images
         self.cv_bridge = CvBridge()
-
-        self.motor_control_publisher = self.create_publisher(MotorControlData, '/amr/motor_control', 10)
 
         # Start spinning
         spinning_thread = threading.Thread(target=self.start_spinning)
