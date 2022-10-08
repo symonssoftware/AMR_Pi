@@ -64,7 +64,7 @@ private:
         mFrontRight->SetInverted(TalonFXInvertType::Clockwise);
         mRearRight->SetInverted(TalonFXInvertType::Clockwise);
 
-        setMotorsToBrake();
+        setMotorsToCoast();
 
         zeroSensors();
     }

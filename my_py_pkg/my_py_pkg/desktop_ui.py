@@ -40,6 +40,8 @@ class DesktopUI(tk.Tk):
     def __init__(self, node):
         super().__init__()
 
+        self.MOTOR_SPEED = 0.15
+
         self.desktop_ui_node = node
 
         # Create the main window
@@ -88,11 +90,40 @@ class DesktopUI(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.quit_button_callback)
 
+        # https://gm0.org/en/latest/docs/software/tutorials/mecanum-drive.html
+
         stop_button = tk.Button(right_frame, text = "Stop", takefocus=0, width=100, command=self.stop_button_callback)
         stop_button.pack(anchor="center", padx=(10,10), pady=(10,10))
 
         forward_button = tk.Button(right_frame, text = "Forward", takefocus=0, width=100, command=self.forward_button_callback)
         forward_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        reverse_button = tk.Button(right_frame, text = "Reverse", takefocus=0, width=100, command=self.reverse_button_callback)
+        reverse_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        strafe_right_button = tk.Button(right_frame, text = "Strafe Right", takefocus=0, width=100, command=self.strafe_right_button_callback)
+        strafe_right_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        strafe_left_button = tk.Button(right_frame, text = "Strafe Left", takefocus=0, width=100, command=self.strafe_left_button_callback)
+        strafe_left_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        up_left_button = tk.Button(right_frame, text = "Up Left", takefocus=0, width=100, command=self.up_left_button_callback)
+        up_left_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        up_right_button = tk.Button(right_frame, text = "Up Right", takefocus=0, width=100, command=self.up_right_button_callback)
+        up_right_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        down_left_button = tk.Button(right_frame, text = "Down Left", takefocus=0, width=100, command=self.down_left_button_callback)
+        down_left_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+        
+        down_right_button = tk.Button(right_frame, text = "Down Right", takefocus=0, width=100, command=self.down_right_button_callback)
+        down_right_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        spin_left_button = tk.Button(right_frame, text = "Spin Left", takefocus=0, width=100, command=self.spin_left_button_callback)
+        spin_left_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        spin_right_button = tk.Button(right_frame, text = "Spin Right", takefocus=0, width=100, command=self.spin_right_button_callback)
+        spin_right_button.pack(anchor="center", padx=(10,10), pady=(10,10))
 
         #self.statusLabel.config(text="Status: Waiting for Initialization Command...")
 
@@ -134,10 +165,109 @@ class DesktopUI(tk.Tk):
         
         msg = MotorControlData()
 
-        msg.front_right_power = 0.2
-        msg.front_left_power = 0.2
-        msg.rear_right_power = 0.2
-        msg.rear_left_power = 0.2
+        msg.front_right_power = self.MOTOR_SPEED
+        msg.front_left_power = self.MOTOR_SPEED
+        msg.rear_right_power = self.MOTOR_SPEED
+        msg.rear_left_power = self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def reverse_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = -self.MOTOR_SPEED
+        msg.front_left_power = -self.MOTOR_SPEED
+        msg.rear_right_power = -self.MOTOR_SPEED
+        msg.rear_left_power = -self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def strafe_left_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = self.MOTOR_SPEED
+        msg.front_left_power = -self.MOTOR_SPEED
+        msg.rear_right_power = -self.MOTOR_SPEED
+        msg.rear_left_power = self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def strafe_right_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = -self.MOTOR_SPEED
+        msg.front_left_power = self.MOTOR_SPEED
+        msg.rear_right_power = self.MOTOR_SPEED
+        msg.rear_left_power = -self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def up_left_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = self.MOTOR_SPEED
+        msg.front_left_power = 0.0
+        msg.rear_right_power = 0.0
+        msg.rear_left_power = self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def up_right_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = 0.0
+        msg.front_left_power = self.MOTOR_SPEED
+        msg.rear_right_power = self.MOTOR_SPEED
+        msg.rear_left_power = 0.0
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def down_left_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = 0.0
+        msg.front_left_power = -self.MOTOR_SPEED
+        msg.rear_right_power = -self.MOTOR_SPEED
+        msg.rear_left_power = 0.0
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def down_right_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = -self.MOTOR_SPEED
+        msg.front_left_power = 0.0
+        msg.rear_right_power = 0.0
+        msg.rear_left_power = -self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def spin_right_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = -self.MOTOR_SPEED
+        msg.front_left_power = self.MOTOR_SPEED
+        msg.rear_right_power = -self.MOTOR_SPEED
+        msg.rear_left_power = self.MOTOR_SPEED
+
+        self.desktop_ui_node.motor_control_data_msg = msg
+
+    def spin_left_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = self.MOTOR_SPEED
+        msg.front_left_power = -self.MOTOR_SPEED
+        msg.rear_right_power = self.MOTOR_SPEED
+        msg.rear_left_power = -self.MOTOR_SPEED
 
         self.desktop_ui_node.motor_control_data_msg = msg
 
