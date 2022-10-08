@@ -88,36 +88,36 @@ private:
     void initMotor(TalonFX *motor, double kF, double kP, double kI, double kD)
     {
         motor->ConfigFactoryDefault();
-        motor->ConfigOpenloopRamp(CLOSED_RAMP_VALUE);
-        motor->ConfigVoltageCompSaturation(11);
-        motor->EnableVoltageCompensation(true);
+        // motor->ConfigOpenloopRamp(CLOSED_RAMP_VALUE);
+        // motor->ConfigVoltageCompSaturation(11);
+        // motor->EnableVoltageCompensation(true);
 
-        StatorCurrentLimitConfiguration statorCurrentLimitConfig =
-            StatorCurrentLimitConfiguration(true, 20, 25, 1.0);
+        // StatorCurrentLimitConfiguration statorCurrentLimitConfig =
+        //     StatorCurrentLimitConfiguration(true, 20, 25, 1.0);
 
-        motor->ConfigStatorCurrentLimit(statorCurrentLimitConfig);
+        // motor->ConfigStatorCurrentLimit(statorCurrentLimitConfig);
 
-        SupplyCurrentLimitConfiguration supplyCurrentLimitConfig =
-            SupplyCurrentLimitConfiguration(true, 10, 15, 0.5);
+        // SupplyCurrentLimitConfiguration supplyCurrentLimitConfig =
+        //     SupplyCurrentLimitConfiguration(true, 10, 15, 0.5);
 
-        motor->ConfigSupplyCurrentLimit(supplyCurrentLimitConfig);
+        // motor->ConfigSupplyCurrentLimit(supplyCurrentLimitConfig);
 
-        motor->SetStatusFramePeriod(StatusFrameEnhanced::Status_13_Base_PIDF0, 10, TIMEOUT_MS);
-        motor->SetStatusFramePeriod(StatusFrameEnhanced::Status_10_MotionMagic, 10, TIMEOUT_MS);
+        // motor->SetStatusFramePeriod(StatusFrameEnhanced::Status_13_Base_PIDF0, 10, TIMEOUT_MS);
+        // motor->SetStatusFramePeriod(StatusFrameEnhanced::Status_10_MotionMagic, 10, TIMEOUT_MS);
 
-        motor->ConfigNominalOutputForward(0, TIMEOUT_MS);
-        motor->ConfigNominalOutputReverse(0, TIMEOUT_MS);
-        motor->ConfigPeakOutputForward(1, TIMEOUT_MS);
-        motor->ConfigPeakOutputReverse(-1, TIMEOUT_MS);
+        // motor->ConfigNominalOutputForward(0, TIMEOUT_MS);
+        // motor->ConfigNominalOutputReverse(0, TIMEOUT_MS);
+        // motor->ConfigPeakOutputForward(1, TIMEOUT_MS);
+        // motor->ConfigPeakOutputReverse(-1, TIMEOUT_MS);
 
-        motor->SelectProfileSlot(0, 0);
-        motor->Config_kF(0, kF, TIMEOUT_MS);
-        motor->Config_kP(0, kP, TIMEOUT_MS);
-        motor->Config_kI(0, kI, TIMEOUT_MS);
-        motor->Config_kD(0, kD, TIMEOUT_MS);
+        // motor->SelectProfileSlot(0, 0);
+        // motor->Config_kF(0, kF, TIMEOUT_MS);
+        // motor->Config_kP(0, kP, TIMEOUT_MS);
+        // motor->Config_kI(0, kI, TIMEOUT_MS);
+        // motor->Config_kD(0, kD, TIMEOUT_MS);
 
-        motor->ConfigMotionCruiseVelocity(1500, TIMEOUT_MS);
-        motor->ConfigMotionAcceleration(1500, TIMEOUT_MS);
+        // motor->ConfigMotionCruiseVelocity(1500, TIMEOUT_MS);
+        // motor->ConfigMotionAcceleration(1500, TIMEOUT_MS);
 
         motor->SetSelectedSensorPosition(0, 0, TIMEOUT_MS);
     }
@@ -295,7 +295,7 @@ private:
         mRearRight->Set(ControlMode::PercentOutput, msg->rear_right_power);
         mRearLeft->Set(ControlMode::PercentOutput, msg->rear_left_power);
 
-        ctre::phoenix::unmanaged::Unmanaged::FeedEnable(100);
+        ctre::phoenix::unmanaged::Unmanaged::FeedEnable(1000);
     }
 
     rclcpp::Subscription<my_robot_interfaces::msg::MotorControlData>::SharedPtr mMotorControlSubscriber;
