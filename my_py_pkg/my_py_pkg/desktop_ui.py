@@ -128,7 +128,7 @@ class DesktopUI(tk.Tk):
         msg.rear_right_power = 0.0
         msg.rear_left_power = 0.0
 
-        self.desktop_ui_node.motor_control_publisher.publish(msg)
+        self.desktop_ui_node.motor_control_data_msg = msg
 
     def forward_button_callback(self):
         
@@ -139,7 +139,7 @@ class DesktopUI(tk.Tk):
         msg.rear_right_power = 0.2
         msg.rear_left_power = 0.2
 
-        self.desktop_ui_node.motor_control_publisher.publish(msg)
+        self.desktop_ui_node.motor_control_data_msg = msg
 
 
     def start_main_loop(self):
@@ -247,7 +247,7 @@ class DesktopUI(tk.Tk):
         # |0  fy  cy|
         # |0   0   1|
 
-        # TODO Get camera config from the camera_info message
+        # TODO Get camera config from the config file in /camera_config/....
         result, overlay = detect_tags(image,
                                      self.apriltag_detector,
                                      #camera_params=(3156.71852, 3129.52243, 359.097908, 239.736909),
@@ -322,7 +322,14 @@ class DesktopUserInterfaceNode(Node):
 
         self.user_interface = DesktopUI(self)
 
-        self.motor_control_publisher = self.create_publisher(MotorControlData, '/amr/motor_control', 10)
+        self.motor_control_data_msg = MotorControlData()
+        self.motor_control_data_msg.front_right_power = 0.0
+        self.motor_control_data_msg.front_left_power = 0.0
+        self.motor_control_data_msg.rear_right_power = 0.0
+        self.motor_control_data_msg.rear_left_power = 0.0
+
+        self.motor_control_data_publisher = self.create_publisher(MotorControlData, '/amr/motor_control', 10)
+        self.motor_control_data_timer = self.create_timer(0.2, self.publish_motor_control_data)
 
         # Create the subscriber. This subscriber will receive an Image
         # from the video_frames topic. The queue size is 10 messages.
@@ -342,6 +349,9 @@ class DesktopUserInterfaceNode(Node):
         spinning_thread.start()
 
         self.user_interface.start_main_loop()
+
+    def publish_motor_control_data(self):
+        self.motor_control_data_publisher.publish(self.motor_control_data_msg)
   
     def video_frames_listener_callback(self, data):
         """

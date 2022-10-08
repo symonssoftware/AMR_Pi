@@ -64,7 +64,7 @@ private:
         mFrontRight->SetInverted(TalonFXInvertType::Clockwise);
         mRearRight->SetInverted(TalonFXInvertType::Clockwise);
 
-        setMotorsToCoast();
+        setMotorsToBrake();
 
         zeroSensors();
     }
@@ -88,19 +88,19 @@ private:
     void initMotor(TalonFX *motor, double kF, double kP, double kI, double kD)
     {
         motor->ConfigFactoryDefault();
-        // motor->ConfigOpenloopRamp(CLOSED_RAMP_VALUE);
-        // motor->ConfigVoltageCompSaturation(11);
-        // motor->EnableVoltageCompensation(true);
+        motor->ConfigOpenloopRamp(0.5);
+        motor->ConfigVoltageCompSaturation(11);
+        motor->EnableVoltageCompensation(true);
 
-        // StatorCurrentLimitConfiguration statorCurrentLimitConfig =
-        //     StatorCurrentLimitConfiguration(true, 20, 25, 1.0);
+        StatorCurrentLimitConfiguration statorCurrentLimitConfig =
+            StatorCurrentLimitConfiguration(true, 20, 25, 1.0);
 
-        // motor->ConfigStatorCurrentLimit(statorCurrentLimitConfig);
+        motor->ConfigStatorCurrentLimit(statorCurrentLimitConfig);
 
-        // SupplyCurrentLimitConfiguration supplyCurrentLimitConfig =
-        //     SupplyCurrentLimitConfiguration(true, 10, 15, 0.5);
+        SupplyCurrentLimitConfiguration supplyCurrentLimitConfig =
+            SupplyCurrentLimitConfiguration(true, 10, 15, 0.5);
 
-        // motor->ConfigSupplyCurrentLimit(supplyCurrentLimitConfig);
+        motor->ConfigSupplyCurrentLimit(supplyCurrentLimitConfig);
 
         // motor->SetStatusFramePeriod(StatusFrameEnhanced::Status_13_Base_PIDF0, 10, TIMEOUT_MS);
         // motor->SetStatusFramePeriod(StatusFrameEnhanced::Status_10_MotionMagic, 10, TIMEOUT_MS);
@@ -295,7 +295,7 @@ private:
         mRearRight->Set(ControlMode::PercentOutput, msg->rear_right_power);
         mRearLeft->Set(ControlMode::PercentOutput, msg->rear_left_power);
 
-        ctre::phoenix::unmanaged::Unmanaged::FeedEnable(1000);
+        ctre::phoenix::unmanaged::Unmanaged::FeedEnable(500);
     }
 
     rclcpp::Subscription<my_robot_interfaces::msg::MotorControlData>::SharedPtr mMotorControlSubscriber;
