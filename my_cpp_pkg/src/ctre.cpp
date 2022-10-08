@@ -29,7 +29,7 @@ public:
         initCTRE();
 
         mMotorControlSubscriber = this->create_subscription<my_robot_interfaces::msg::MotorControlData>(
-            "/amr/radio_link", 10,
+            "/amr/motor_control", 10,
             std::bind(&CTRENode::callbackMotorControl, this, std::placeholders::_1));
 
         mPigeonPublisher = this->create_publisher<my_robot_interfaces::msg::ArduinoSerial>("/amr/arduino_serial", 10);

@@ -44,6 +44,12 @@ def generate_launch_description():
     #     ]
     # )
 
+    ctre_node = launch_ros.actions.Node(
+        package='my_cpp_pkg',
+        executable='ctre',
+        name='ctre'
+    )
+
     usb_cam_node = launch_ros.actions.Node(
         package='image_tools',
         executable='cam2image',
@@ -132,6 +138,7 @@ def generate_launch_description():
         # robot_state_publisher_node,
         # robot_localization_node,
         # odometry_node,
+        ctre_node,
         usb_cam_node
         #rviz_node
     ])

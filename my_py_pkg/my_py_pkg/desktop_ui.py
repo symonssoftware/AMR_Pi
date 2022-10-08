@@ -17,6 +17,7 @@ import cv2
 from cv_bridge import CvBridge
 from PIL import Image, ImageTk
 from sensor_msgs.msg import Image as ROSImage
+from my_robot_interfaces.msg import MotorControlData
 
 from .april_tag import Detector
 from .april_tag import _get_dll_path
@@ -85,6 +86,12 @@ class DesktopUI(tk.Tk):
 
         self.protocol("WM_DELETE_WINDOW", self.quit_button_callback)
 
+        stop_button = tk.Button(right_frame, text = "Stop", takefocus=0, width=100, command=self.stop_button_callback)
+        stop_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
+        forward_button = tk.Button(right_frame, text = "Forward", takefocus=0, width=100, command=self.forward_button_callback)
+        forward_button.pack(anchor="center", padx=(10,10), pady=(10,10))
+
         #self.statusLabel.config(text="Status: Waiting for Initialization Command...")
 
         self.started_lane_detection = False
@@ -101,7 +108,6 @@ class DesktopUI(tk.Tk):
         self.open_cv_canvas = Canvas(self, width=600, height=480, takefocus=0)  
         self.open_cv_canvas.grid(row=0, column=1, pady=(10,0))
 
- 
     def quit_button_callback(self):
         if messagebox.askokcancel("Quit", "Do you want to quit?"):
 
@@ -110,6 +116,29 @@ class DesktopUI(tk.Tk):
             cv2.destroyAllWindows()
 
             self.destroy()  
+
+    def stop_button_callback(self):
+
+        msg = MotorControlData()
+
+        msg.front_right_power = 0.0
+        msg.front_left_power = 0.0
+        msg.rear_right_power = 0.0
+        msg.rear_left_power = 0.0
+
+        self.motor_control_publisher.publish(msg)
+
+    def forward_button_callback(self):
+        
+        msg = MotorControlData()
+
+        msg.front_right_power = 0.2
+        msg.front_left_power = 0.2
+        msg.rear_right_power = 0.2
+        msg.rear_left_power = 0.2
+
+        self.motor_control_publisher.publish(msg)
+
 
     def start_main_loop(self):
         self.mainloop() 
@@ -303,6 +332,8 @@ class DesktopUserInterfaceNode(Node):
       
         # Used to convert between ROS and OpenCV images
         self.cv_bridge = CvBridge()
+
+        self.motor_control_publisher = self.create_publisher(MotorControlData, '/amr/motor_control', 10)
 
         # Start spinning
         spinning_thread = threading.Thread(target=self.start_spinning)

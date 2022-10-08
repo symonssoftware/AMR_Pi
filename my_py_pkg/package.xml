@@ -8,7 +8,7 @@
   <license>TODO: License declaration</license>
 
   <depend>rclpy</depend>
- <depend>tkinter</depend>
+  <depend>tkinter</depend>
   <depend>std_msgs</depend>
   <depend>std_srvs</depend>
   <depend>threading</depend>
@@ -20,6 +20,7 @@
   <depend>cv2</depend>
   <depend>PIL</depend>
   <depend>april_tag</depend>
+  <depend>my_robot_interfaces</depend>
   
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

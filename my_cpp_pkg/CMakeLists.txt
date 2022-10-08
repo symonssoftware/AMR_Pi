@@ -30,8 +30,15 @@ ament_target_dependencies(ctre rclcpp my_robot_interfaces example_interfaces)
 
 set(PHOENIX_LIBS_DIR ${PROJECT_SOURCE_DIR}/lib)
 
-target_link_libraries(ctre ${PHOENIX_LIBS_DIR}/libCTRE_Phoenix.so)
-target_link_libraries(ctre ${PHOENIX_LIBS_DIR}/libCTRE_PhoenixCCI.so)
+if (CMAKE_SYSTEM_PROCESSOR MATCHES "(x86)|(X86)|(amd64)|(AMD64)")
+  #PC
+  target_link_libraries(ctre ${PHOENIX_LIBS_DIR}/x86-64/libCTRE_Phoenix.so)
+  target_link_libraries(ctre ${PHOENIX_LIBS_DIR}/x86-64/libCTRE_PhoenixCCI.so)
+else ()
+  #Raspberry Pi 
+  target_link_libraries(ctre ${PHOENIX_LIBS_DIR}/raspberry/libCTRE_Phoenix.so)
+  target_link_libraries(ctre ${PHOENIX_LIBS_DIR}/raspberry/libCTRE_PhoenixCCI.so)
+  endif()
 
 install(TARGETS
     ctre
