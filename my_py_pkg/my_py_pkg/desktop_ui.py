@@ -64,7 +64,7 @@ class DesktopUI(tk.Tk):
         self.columnconfigure(1, weight=3)
         self.columnconfigure(2, weight=1)
 
-        left_frame = Frame(self, borderwidth=3, relief=tk.SUNKEN, width=300, height=600)
+        left_frame = Frame(self, borderwidth=3, relief=tk.SUNKEN, width=300, height=750)
         left_frame.pack_propagate(0)
         left_frame.grid(row=0, column=0, pady=(10,10))
 
@@ -73,7 +73,7 @@ class DesktopUI(tk.Tk):
         self.status_label2 = tk.Label(self, bg="black", fg="orange", text="                                     ", font=("Arial", 22), takefocus=0)
         self.status_label2.grid(row=2, column=1, pady=(25,0))
         
-        right_frame = Frame(self, borderwidth=3, relief=tk.SUNKEN, width=300, height=600)
+        right_frame = Frame(self, borderwidth=3, relief=tk.SUNKEN, width=300, height=750)
         right_frame.pack_propagate(0)
         right_frame.grid(row=0, column=2, pady=(10,10))
 
